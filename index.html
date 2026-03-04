@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Desmárcalo — Tu sistema de hábitos</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; color: #f0ece4; font-family: 'Georgia', 'Times New Roman', serif; }
+    button:focus { outline: none; }
+    ::-webkit-scrollbar { width: 4px; } 
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 99px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const HABITS = [
+      { id: "agua", label: "Tomar 2L de agua", icon: "💧", category: "cuerpo" },
+      { id: "caminar", label: "Caminar 20+ min", icon: "🚶", category: "cuerpo" },
+      { id: "ejercicio", label: "Ejercicio en casa", icon: "💪", category: "cuerpo" },
+      { id: "comida", label: "Comer comida real", icon: "🥗", category: "alimentacion" },
+      { id: "sinazucar", label: "Sin refresco/azúcar extra", icon: "🚫", category: "alimentacion" },
+      { id: "dormir", label: "Dormir antes de 11pm", icon: "🌙", category: "mente" },
+      { id: "pantalla", label: "Sin pantalla 30min antes de dormir", icon: "📵", category: "mente" },
+      { id: "gratitud", label: "Escribir 3 gratitudes", icon: "📓", category: "mente" },
+      { id: "lectura", label: "Leer o aprender algo", icon: "📚", category: "habitos" },
+      { id: "orden", label: "Mantener orden en mi espacio", icon: "✨", category: "habitos" },
+    ];
+
+    const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+    const CATEGORY_COLORS = {
+      cuerpo: "#4ade80", alimentacion: "#fb923c", mente: "#a78bfa", habitos: "#38bdf8",
+    };
+    const CATEGORY_LABELS = {
+      cuerpo: "Cuerpo", alimentacion: "Alimentación", mente: "Mente", habitos: "Hábitos",
+    };
+
+    function getToday() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    function getDatesOfMonth(year, month) {
+      const dates = [];
+      const d = new Date(year, month, 1);
+      while (d.getMonth() === month) {
+        dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`);
+        d.setDate(d.getDate() + 1);
+      }
+      return dates;
+    }
+
+    function App() {
+      const today = getToday();
+      const now = new Date();
+      const [viewMonth, setViewMonth] = useState(now.getMonth());
+      const [viewYear, setViewYear] = useState(now.getFullYear());
+      const [selectedDate, setSelectedDate] = useState(today);
+      const [records, setRecords] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("desmarcalo_records") || "{}"); } catch { return {}; }
+      });
+      const [tab, setTab] = useState("hoy");
+      const [streak, setStreak] = useState(0);
+
+      useEffect(() => {
+        try { localStorage.setItem("desmarcalo_records", JSON.stringify(records)); } catch {}
+        let s = 0;
+        let d = new Date();
+        while (true) {
+          const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+          const dayRec = records[key] || {};
+          const done = HABITS.filter(h => dayRec[h.id]).length;
+          if (done >= Math.ceil(HABITS.length * 0.5)) { s++; d.setDate(d.getDate()-1); }
+          else break;
+        }
+        setStreak(s);
+      }, [records]);
+
+      const toggleHabit = (date, habitId) => {
+        setRecords(prev => ({
+          ...prev,
+          [date]: { ...(prev[date] || {}), [habitId]: !(prev[date]?.[habitId]) }
+        }));
+      };
+
+      const dayRecord = records[selectedDate] || {};
+      const completedToday = HABITS.filter(h => dayRecord[h.id]).length;
+      const percent = Math.round((completedToday / HABITS.length) * 100);
+      const datesOfMonth = getDatesOfMonth(viewYear, viewMonth);
+      const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+      const getMonthScore = (dateStr) => {
+        const r = records[dateStr] || {};
+        return HABITS.filter(h => r[h.id]).length;
+      };
+      const totalThisMonth = datesOfMonth.reduce((acc, d) => acc + getMonthScore(d), 0);
+      const maxPossible = datesOfMonth.length * HABITS.length;
+      const monthPercent = maxPossible ? Math.round((totalThisMonth / maxPossible) * 100) : 0;
+      const categories = [...new Set(HABITS.map(h => h.category))];
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#0d0d0d", color:"#f0ece4", fontFamily:"'Georgia','Times New Roman',serif", position:"relative", overflowX:"hidden" }}>
+          <div style={{ position:"fixed", inset:0, zIndex:0, background:"radial-gradient(ellipse at 20% 50%, #1a1a2e 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, #16213e 0%, transparent 50%)", pointerEvents:"none" }} />
+          <div style={{ position:"relative", zIndex:1, maxWidth:520, margin:"0 auto", padding:"28px 16px 80px" }}>
+
+            {/* Header */}
+            <div style={{ textAlign:"center", marginBottom:32 }}>
+              <div style={{ fontSize:11, letterSpacing:6, color:"#888", textTransform:"uppercase", marginBottom:6 }}>tu sistema personal</div>
+              <h1 style={{ fontSize:42, fontWeight:"900", margin:0, background:"linear-gradient(135deg, #f0ece4 30%, #4ade80 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:-1 }}>Desmárcalo</h1>
+              <div style={{ fontSize:13, color:"#666", marginTop:4, fontStyle:"italic" }}>marca lo que cumpliste hoy</div>
+            </div>
+
+            {/* Streak + score */}
+            <div style={{ display:"flex", gap:12, marginBottom:24 }}>
+              <div style={{ flex:1, background:"#161616", border:"1px solid #2a2a2a", borderRadius:16, padding:"16px", textAlign:"center" }}>
+                <div style={{ fontSize:32, fontWeight:900, color:"#4ade80" }}>{streak}</div>
+                <div style={{ fontSize:11, color:"#666", letterSpacing:2, textTransform:"uppercase" }}>días seguidos</div>
+              </div>
+              <div style={{ flex:2, background:"#161616", border:"1px solid #2a2a2a", borderRadius:16, padding:"16px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                  <span style={{ fontSize:13, color:"#aaa" }}>Hoy — {completedToday}/{HABITS.length}</span>
+                  <span style={{ fontSize:18, fontWeight:900, color: percent>=80?"#4ade80":percent>=50?"#fb923c":"#f87171" }}>{percent}%</span>
+                </div>
+                <div style={{ background:"#222", borderRadius:99, height:8, overflow:"hidden" }}>
+                  <div style={{ height:"100%", borderRadius:99, background:percent>=80?"#4ade80":percent>=50?"#fb923c":"#f87171", width:`${percent}%`, transition:"width 0.5s cubic-bezier(.4,2,.6,1)" }} />
+                </div>
+                <div style={{ fontSize:11, color:"#555", marginTop:6, fontStyle:"italic" }}>
+                  {percent===100?"¡Día perfecto! 🎉":percent>=80?"¡Casi completo!":percent>=50?"Buen avance, sigue!":"¡Tú puedes!"}
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+              {[["hoy","Hoy"],["calendario","Calendario"],["stats","Estadísticas"]].map(([key,label]) => (
+                <button key={key} onClick={() => setTab(key)} style={{ flex:1, padding:"10px 0", borderRadius:12, border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, letterSpacing:1, background:tab===key?"#4ade80":"#161616", color:tab===key?"#0d0d0d":"#666", transition:"all 0.2s" }}>{label}</button>
+              ))}
+            </div>
+
+            {/* HOY */}
+            {tab==="hoy" && (
+              <div>
+                <div style={{ fontSize:12, color:"#555", marginBottom:16, textAlign:"center", letterSpacing:1 }}>
+                  {new Date(selectedDate+"T12:00:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
+                </div>
+                {categories.map(cat => (
+                  <div key={cat} style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:10, letterSpacing:4, textTransform:"uppercase", color:CATEGORY_COLORS[cat], marginBottom:8, borderLeft:`2px solid ${CATEGORY_COLORS[cat]}`, paddingLeft:10 }}>{CATEGORY_LABELS[cat]}</div>
+                    {HABITS.filter(h => h.category===cat).map(habit => {
+                      const done = !!(dayRecord[habit.id]);
+                      return (
+                        <button key={habit.id} onClick={() => toggleHabit(selectedDate, habit.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:14, background:done?`${CATEGORY_COLORS[cat]}18`:"#161616", border:`1px solid ${done?CATEGORY_COLORS[cat]:"#222"}`, borderRadius:14, padding:"14px 16px", marginBottom:8, cursor:"pointer", color:done?"#f0ece4":"#777", fontFamily:"inherit", fontSize:14, textAlign:"left", transition:"all 0.2s" }}>
+                          <span style={{ fontSize:22 }}>{habit.icon}</span>
+                          <span style={{ flex:1, fontWeight:done?600:400 }}>{habit.label}</span>
+                          <span style={{ width:22, height:22, borderRadius:"50%", background:done?CATEGORY_COLORS[cat]:"transparent", border:`2px solid ${done?CATEGORY_COLORS[cat]:"#333"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:"#0d0d0d", flexShrink:0, transition:"all 0.2s" }}>{done?"✓":""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* CALENDARIO */}
+            {tab==="calendario" && (
+              <div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                  <button onClick={() => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); }} style={{ background:"none", border:"none", color:"#888", fontSize:20, cursor:"pointer" }}>‹</button>
+                  <span style={{ fontWeight:700, fontSize:15 }}>{MONTHS[viewMonth]} {viewYear}</span>
+                  <button onClick={() => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); }} style={{ background:"none", border:"none", color:"#888", fontSize:20, cursor:"pointer" }}>›</button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:4 }}>
+                  {DAYS.map(d => <div key={d} style={{ textAlign:"center", fontSize:10, color:"#555", letterSpacing:1, padding:"4px 0" }}>{d}</div>)}
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4 }}>
+                  {Array(firstDay).fill(null).map((_,i) => <div key={`e${i}`} />)}
+                  {datesOfMonth.map(dateStr => {
+                    const score = getMonthScore(dateStr);
+                    const pct = score/HABITS.length;
+                    const isToday = dateStr===today;
+                    const isSel = dateStr===selectedDate;
+                    const dayNum = parseInt(dateStr.split("-")[2]);
+                    const bg = score===0?"#161616":pct>=0.8?"#4ade8044":pct>=0.5?"#fb923c44":"#f8717144";
+                    const border = isSel?"#4ade80":isToday?"#666":"#222";
+                    return (
+                      <button key={dateStr} onClick={() => { setSelectedDate(dateStr); setTab("hoy"); }} style={{ background:bg, border:`2px solid ${border}`, borderRadius:10, padding:"8px 0", textAlign:"center", cursor:"pointer", color:isToday?"#f0ece4":"#888", fontFamily:"inherit", fontSize:13, fontWeight:isToday?700:400, position:"relative" }}>
+                        {dayNum}
+                        {score>0 && <div style={{ position:"absolute", bottom:3, left:"50%", transform:"translateX(-50%)", width:4, height:4, borderRadius:"50%", background:pct>=0.8?"#4ade80":pct>=0.5?"#fb923c":"#f87171" }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display:"flex", gap:12, marginTop:20, justifyContent:"center" }}>
+                  {[["#4ade80","80%+"],["#fb923c","50–79%"],["#f87171","1–49%"]].map(([c,l]) => (
+                    <div key={l} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:"#666" }}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", background:c }} />{l}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop:20, background:"#161616", border:"1px solid #222", borderRadius:16, padding:16, textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:900, color:"#4ade80" }}>{monthPercent}%</div>
+                  <div style={{ fontSize:11, color:"#666", letterSpacing:2, textTransform:"uppercase" }}>cumplimiento este mes</div>
+                </div>
+              </div>
+            )}
+
+            {/* STATS */}
+            {tab==="stats" && (
+              <div>
+                <div style={{ marginBottom:16, fontSize:12, color:"#555", textAlign:"center", letterSpacing:1, textTransform:"uppercase" }}>últimos 7 días</div>
+                {Array.from({length:7}).map((_,i) => {
+                  const d = new Date(); d.setDate(d.getDate()-(6-i));
+                  const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+                  const score = getMonthScore(key);
+                  const pct = Math.round((score/HABITS.length)*100);
+                  const isToday = key===today;
+                  return (
+                    <div key={key} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
+                      <div style={{ width:36, fontSize:11, color:isToday?"#4ade80":"#666", textAlign:"right", flexShrink:0 }}>{DAYS[d.getDay()]}</div>
+                      <div style={{ flex:1, background:"#161616", borderRadius:99, height:28, overflow:"hidden", position:"relative" }}>
+                        <div style={{ height:"100%", borderRadius:99, background:pct>=80?"#4ade8066":pct>=50?"#fb923c66":pct>0?"#f8717166":"transparent", width:`${pct}%`, transition:"width 0.5s" }} />
+                        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", paddingLeft:12, fontSize:12, color:"#aaa" }}>{score}/{HABITS.length} hábitos</div>
+                      </div>
+                      <div style={{ width:36, textAlign:"left", fontSize:12, fontWeight:700, color:pct>=80?"#4ade80":pct>=50?"#fb923c":pct>0?"#f87171":"#333" }}>{pct}%</div>
+                    </div>
+                  );
+                })}
+                <div style={{ marginTop:24, marginBottom:12, fontSize:12, color:"#555", textAlign:"center", letterSpacing:1, textTransform:"uppercase" }}>por hábito (últimos 7 días)</div>
+                {HABITS.map(habit => {
+                  let count = 0;
+                  for(let i=0;i<7;i++){
+                    const d = new Date(); d.setDate(d.getDate()-i);
+                    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+                    if(records[key]?.[habit.id]) count++;
+                  }
+                  const pct = Math.round((count/7)*100);
+                  return (
+                    <div key={habit.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                      <span style={{ fontSize:18, flexShrink:0 }}>{habit.icon}</span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                          <span style={{ fontSize:12, color:"#aaa" }}>{habit.label}</span>
+                          <span style={{ fontSize:11, color:CATEGORY_COLORS[habit.category] }}>{count}/7</span>
+                        </div>
+                        <div style={{ background:"#1a1a1a", borderRadius:99, height:5 }}>
+                          <div style={{ height:"100%", borderRadius:99, background:CATEGORY_COLORS[habit.category], width:`${pct}%`, transition:"width 0.5s", opacity:0.8 }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
